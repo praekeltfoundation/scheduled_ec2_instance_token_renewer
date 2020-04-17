@@ -1,0 +1,7 @@
+APScheduler==3.6.3
+asn1crypto==0.24.0
+boto3==1.12.39
+botocore==1.15.39
+slack-webhook==1.0.3
+
+
