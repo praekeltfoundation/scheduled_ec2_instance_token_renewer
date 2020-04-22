@@ -5,17 +5,17 @@ from botocore.credentials import InstanceMetadataProvider
 from apscheduler.schedulers.blocking import BlockingScheduler
 from slack_webhook import Slack
 
-def r():
-  pass  #Do nothing
+def job(file_loc):
+  scheduler.remove_job('job_id')
+  scheduler.add_job(job, 'interval', id='job_id', seconds=credentials(file_loc), replace_existing=True)
 
 # Read file contents for AWS EC2 Roles stored as Key-Value Pairs in the specified File location
 def keys_read(file_loc):
   contents={}
-  key_value=[]
   with open(file_loc,"r") as f:
     for i in f:
       key_value=i.split(":")
-      contents[key_value[0]]=key_value[1].strip()
+      contents[key_value[0].strip()]=key_value[1].strip()
   f.close()
   return (contents)
 
@@ -35,7 +35,7 @@ def credentials(file_loc):
   provider = InstanceMetadataProvider(iam_role_fetcher=InstanceMetadataFetcher(timeout=1000, num_attempts=2))
   creds = provider.load()
   file_contents = {'access_key':creds.access_key, 'secret_key':creds.secret_key, 'token':creds.token }
-  file_write(file_loc, file_contents) # Write Tokens to file
+  file_write(file_loc, file_contents) #Write Tokens to file
   token_issue_time= datetime.datetime.strptime(now.strftime("%y/%m/%d %H:%M:%S"), "%y/%m/%d  %H:%M:%S" ) # Remove time awareness
   token_issue_expiry = datetime.datetime.strptime((creds._expiry_time).strftime("%y/%m/%d %H:%M:%S"), "%y/%m/%d  %H:%M:%S" ) # Time awa
   expiry_time_sec = (token_issue_expiry - token_issue_time).total_seconds() # Total Seconds before token expiry
@@ -44,21 +44,18 @@ def credentials(file_loc):
 
 if __name__=="__main__":
    # Pass File Location as Absolute Path to Storage Location for Instance Credentials
-  file_loc= os.path.abspath(os.getcwd())+"/r.txt"
+  file_loc = os.path.abspath(os.getcwd())+"/r.txt"
   credentials(file_loc)
   try:
     if  bool(sys.argv[1].strip()):
-      file_loc=sys.argv[1]
+      file_loc = sys.argv[1]
   except:
     pass
 
   sched = BlockingScheduler()
 
   # Fetch New Credentials 15 mins before expiry of the previous ones
-  @sched.scheduled_job( 'interval', minutes=credentials(file_loc))
-  def update_a():
-    r()
-    return job
+  sched.add_job (job(file_loc), 'interval', id='job_id', seconds=credentials(file_loc), replace_existing=True)
 
   # Example Redshift Schedule  which Pulls Cluster Details as A CronJob
   # And publishes them if successful
@@ -77,6 +74,6 @@ if __name__=="__main__":
       cluster_list = ddb.describe_clusters()
       slack.post(text="Describe Clusters Detail Successful") 
     except:
-      slack.post("Describe Cluster Deta")
+      slack.post("Invalid Credentials or EC2 Role")
 
   sched.start()
